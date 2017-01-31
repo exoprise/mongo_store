@@ -3,85 +3,20 @@ require 'mongo'
 
 module MongoStore
   module Cache
-    module Rails2
-      attr_reader :options
-      
-      # Inserts the value into the cache collection or updates the existing value.  The value must be a valid
-      # MongoDB type.  An *:expires_in* option may be provided, as with MemCacheStore.  If one is _not_ 
-      # provided, a default expiration of 1 day is used.
-      def write(key, value, local_options=nil)
-        super
-        opts = local_options ? options.merge(local_options) : options
-        expires = Time.now + opts[:expires_in]
-        collection.update({'_id' => namespaced_key(key, opts)}, {'$set' => {'value' => value, 'expires' => expires}}, :upsert => true)
-      end
-      
-      # Reads the value from the cache collection.
-      def read(key, local_options=nil)
-        super
-        opts = local_options ? options.merge(local_options) : options
-        if doc = collection.find_one('_id' => namespaced_key(key, opts), 'expires' => {'$gt' => Time.now})
-          doc['value']
-        end
-      end
-        
-      # Takes the specified value out of the collection.
-      def delete(key, local_options=nil)
-        super
-        opts = local_options ? options.merge(local_options) : options
-        collection.remove({'_id' => namespaced_key(key,opts)})
-      end
-      
 
-      # Takes the value matching the pattern out of the collection.
-      def delete_matched(key, local_options=nil)
-        super
-        opts = local_options ? options.merge(local_options) : options
-        collection.remove({'_id' => key_matcher(key,opts)})
-      end
-
-            
-      protected
-
-      # Lifted from Rails 3 ActiveSupport::Cache::Store
-      def namespaced_key(key, options)
-        namespace = options[:namespace] if options
-        prefix = namespace.is_a?(Proc) ? namespace.call : namespace
-        key = "#{prefix}:#{key}" if prefix
-        key
-      end
-      
-      # Lifted from Rails 3 ActiveSupport::Cache::Store
-      def key_matcher(pattern, options)
-        prefix = options[:namespace].is_a?(Proc) ? options[:namespace].call : options[:namespace]
-        if prefix
-          source = pattern.source
-          if source.start_with?('^')
-            source = source[1, source.length]
-          else
-            source = ".*#{source[0, source.length]}"
-          end
-          Regexp.new("^#{Regexp.escape(prefix)}:#{source}", pattern.options)
-        else
-          pattern
-        end
-      end
-      
-    end
-    
     module Rails3
       def write_entry(key, entry, options)
         expires = Time.now + options[:expires_in]
         value = entry.value
         value = value.to_mongo if value.respond_to? :to_mongo
         begin
-          collection.update({'_id' => key}, {'$set' => {'value' => value, 'expires' => expires}}, :upsert => true)
-        rescue BSON::InvalidDocument
+          collection.update_many({'_id' => key}, {'$set' => {'value' => value, 'expires' => expires}}, :upsert => true)
+        rescue Mongo::Error::InvalidDocument
           value = value.to_s and retry unless value.is_a? String
         end
       end
       def read_entry(key, options=nil)
-        doc = collection.find_one('_id' => key, 'expires' => {'$gt' => Time.now})
+        doc = collection.find('_id' => key, 'expires' => {'$gt' => Time.now}).limit(1).first
         ActiveSupport::Cache::Entry.new(doc['value']) if doc
       end
       def delete_entry(key, options=nil)
@@ -97,8 +32,7 @@ module MongoStore
     end
     
     module Store
-      rails3 = defined?(::Rails) && ::Rails.version =~ /^(3|4)\./
-      include rails3 ? Rails3 : Rails2
+      include Rails3
       
       def expires_in
         options[:expires_in]
@@ -174,18 +108,21 @@ module ActiveSupport
       end
       
       def make_collection
-        db = case options[:db]
-        when Mongo::DB then options[:db]
-        when String then Mongo::DB.new(options[:db], Mongo::Connection.new)
-        else
-          if mongomapper?
-            MongoMapper.database
-          else
-            Mongo::DB.new(options[:db_name], Mongo::Connection.new)
-          end
-        end
-        coll = db.create_collection(options[:collection_name])
-        coll.create_index([['_id',Mongo::ASCENDING], ['expires',Mongo::DESCENDING]]) if options[:create_index]
+        # db = case options[:db]
+        # when Mongo::DB then options[:db]
+        # when String then Mongo::DB.new(options[:db], Mongo::Connection.new)
+        # else
+        #   if mongomapper?
+        #     MongoMapper.database
+        #   else
+        #     Mongo::Database.new(options[:db_name], Mongo::Connection.new)
+        #   end
+        # end
+        db = options[:db]
+        # coll = db.create_collection(options[:collection_name])
+        # coll.create_index([['_id',Mongo::ASCENDING], ['expires',Mongo::DESCENDING]]) if options[:create_index]
+        coll = db[options[:collection_name]]
+        coll.indexes.create_one({'_id' => Mongo::Index::ASCENDING, 'expires' => Mongo::Index::DESCENDING}) if options[:create_index]
         coll
       end
         
