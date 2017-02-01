@@ -20,7 +20,7 @@ module MongoStore
         ActiveSupport::Cache::Entry.new(doc['value']) if doc
       end
       def delete_entry(key, options=nil)
-        collection.remove({'_id' => key})
+        collection.delete_one({'_id' => key})
       end
       def delete_matched(pattern, options=nil)
         options = merged_options(options)
@@ -94,12 +94,12 @@ module ActiveSupport
       # if the key itself never gets cached again.  It also means you can _reduce_ efficiency by running this
       # too often.)
       def clean_expired
-        collection.remove({'expires' => {'$lt' => Time.now}})
+        collection.delete_all({'expires' => {'$lt' => Time.now}})
       end
       
       # Wipes the whole cache.
       def clear
-        collection.remove
+        collection.delete_all
       end
       
       private
