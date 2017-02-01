@@ -122,7 +122,7 @@ module ActiveSupport
         # coll = db.create_collection(options[:collection_name])
         # coll.create_index([['_id',Mongo::ASCENDING], ['expires',Mongo::DESCENDING]]) if options[:create_index]
         coll = db[options[:collection_name]]
-        coll.indexes.create_one({'_id' => Mongo::Index::ASCENDING, 'expires' => Mongo::Index::DESCENDING}) if options[:create_index]
+        coll.indexes.create_one({_id: 1, expires: -1}) if options[:create_index]
         coll
       end
         
