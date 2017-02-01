@@ -10,7 +10,7 @@ module MongoStore
         value = entry.value
         value = value.to_mongo if value.respond_to? :to_mongo
         begin
-          collection.update_many({'_id' => key}, {'$set' => {'value' => value, 'expires' => expires}}, :upsert => true)
+          collection.update_one({'_id' => key}, {'$set' => {'value' => value, 'expires' => expires}}, :upsert => true)
         rescue Mongo::Error::InvalidDocument
           value = value.to_s and retry unless value.is_a? String
         end
