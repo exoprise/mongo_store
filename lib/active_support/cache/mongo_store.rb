@@ -104,6 +104,31 @@ module ActiveSupport
         #collection.remove
         collection.delete_many
       end
+
+
+      #basically lifted from memory_store. not clear to me my there isn't a default implementation
+      def increment(name, amount = 1, options = nil)
+        options = merged_options(options)
+        if num = read(name, options)
+          num = num.to_i + amount
+          write(name, num, options)
+          num
+        else
+          nil
+        end
+      end
+
+
+      def decrement(name, amount =1, options = nil)
+        options = merged_options(options)
+        if num = read(name, options)
+          num = num.to_i - amount
+          write(name, num, options)
+          num
+        else
+          nil
+        end
+      end
       
       private
       def mongomapper?
