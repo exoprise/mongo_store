@@ -108,11 +108,14 @@ module ActiveSupport
 
       #basically lifted from memory_store. not clear to me my there isn't a default implementation
       def increment(name, amount = 1, options = nil)
-        #options ignored
-        #options = merged_options(options)
+        expires = Time.now + options[:expires_in]
         val = nil
         begin
-          doc = collection.find_one_and_update( { '_id' => name}, { '$inc' => { 'value' => amount.to_i }}, return_document: :after, upsert: true )
+          doc = collection.find_one_and_update(
+              { '_id' => name},
+               { '$inc' => { 'value' => amount.to_i },
+                 '$set' => { 'expires' => expires } },
+               return_document: :after, upsert: true )
           val = doc['value']
         #not clear which exceptions
         rescue Mongo::Error::InvalidDocument
@@ -121,10 +124,14 @@ module ActiveSupport
       end
 
       def decrement(name, amount =1, options = nil)
-        #options = merged_options(options)
+        expires = Time.now + options[:expires_in]
         val = nil
         begin
-          doc = collection.find_one_and_update( { '_id' => name}, { '$inc' => { 'value' => amount.to_i * -1 }}, return_document: :after, upsert: true )
+          doc = collection.find_one_and_update(
+              { '_id' => name},
+              { '$inc' => { 'value' => amount.to_i * -1 },
+                '$set' => { 'expires' => expires } },
+              return_document: :after, upsert: true )
           val = doc['value']
         rescue Mongo::Error::InvalidDocument
         end
